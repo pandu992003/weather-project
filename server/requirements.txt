@@ -3,5 +3,3 @@ uvicorn
 httpx
 python-dotenv
 mcp
-streamlit
-openai

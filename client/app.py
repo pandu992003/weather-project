@@ -13,7 +13,7 @@ from mcp.types import CallToolResult, TextContent
 load_dotenv()
 # Configuration
 # If running in Docker, the server is accessible via the service name 'mcp-server'
-SERVER_URL = os.getenv("SERVER_URL", "http://localhost:8000/mcp/sse")
+SERVER_URL = os.getenv("SERVER_URL", "http://localhost:8001/mcp/sse")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 

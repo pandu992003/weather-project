@@ -13,8 +13,8 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t weather-mcp:latest .
+      - name: Verify Build (CI)
+        run: docker-compose build
 
       - name: Setup SSH
         env:
@@ -25,36 +25,39 @@ jobs:
           echo "$EC2_DEPLOY_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          echo "SSH Key Fingerprint:"
-          ssh-keygen -lf ~/.ssh/id_rsa
-
-      - name: Test SSH Connection (Debug)
-        run: |
-          ssh -v -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} "echo SSH Connection Successful"
 
       - name: Copy project to EC2
         run: |
           rsync -av --delete -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
-            --exclude='.git' --exclude='.github' ./ \
-            ubuntu@${{ secrets.EC2_HOST }}:${{ secrets.EC2_PATH }}
+            --exclude='.git' --exclude='.github' --exclude='__pycache__' \
+            --exclude='keys' --exclude='.env' \
+            ./ ubuntu@${{ secrets.EC2_HOST }}:${{ secrets.EC2_PATH }}
 
       - name: Deploy on EC2
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            # 1. Navigate to project folder
+            # Ensure folder exists just in case rsync didn't create parent
+            mkdir -p ${{ secrets.EC2_PATH }}
             cd ${{ secrets.EC2_PATH }}
 
-            echo "Stopping existing containers..."
-            docker-compose down || true
-
-            echo "Creating/Updating .env file..."
+            # 2. Update Environment Variables from Secrets
+            echo "Creating .env file..."
             cat > .env << 'ENVEOF'
             OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             ENVEOF
 
-            echo "Building and starting containers..."
+            # 3. Restart Docker Containers
+            echo "Stopping old containers..."
+            docker-compose down || true
+
+            echo "Building and starting new containers..."
             docker-compose up -d --build
 
-            echo "Deployment completed successfully"
+            # 4. Cleanup
+            docker system prune -f
+
+            echo "✅ Deployment Success!"
             docker-compose ps
           EOF
